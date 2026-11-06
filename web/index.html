@@ -35,13 +35,15 @@ h1{font-size:18px;font-weight:500}
 .hint{font-size:11.5px;color:var(--tx3);margin-left:auto}
 
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(166px,1fr));gap:12px;margin-bottom:16px}
-.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px;
+  box-shadow:0 1px 2px rgba(44,44,42,.035)}
 .kpi .lab{color:var(--tx2);font-size:12px;margin-bottom:5px}
 .kpi .val{font-size:21px;font-weight:500;letter-spacing:-.3px;font-variant-numeric:tabular-nums;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpi .sub{color:var(--tx3);font-size:11px;margin-top:2px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px}
-.card h2{font-size:13.5px;font-weight:500;margin-bottom:12px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px 17px;margin-bottom:14px;
+  box-shadow:0 1px 2px rgba(44,44,42,.035)}
+.card h2{font-size:13.5px;font-weight:500;margin-bottom:13px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .card h2 span{font-size:11.5px;font-weight:400;color:var(--tx3);text-align:right}
 svg{display:block;width:100%;height:auto}
 /* ---- 趋势图悬停 ---- */
@@ -60,22 +62,53 @@ svg{display:block;width:100%;height:auto}
 .tip .hr{height:1px;background:#f0eeea;margin:5px 0}
 .legend{display:flex;gap:16px;margin-top:8px;font-size:11.5px;color:var(--tx2);flex-wrap:wrap}
 .legend i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:1px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
-@media(max-width:880px){.grid2{grid-template-columns:1fr}}
+/* 两列等宽，但两列各自是一个 flex 列：让矮的那一列把最后一张卡撑满，
+   否则会话列表比左栏高，左下角就会空出一大块白 */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.col>.card{margin-bottom:0}
+.col>.card.grow{flex:1;display:flex;flex-direction:column;min-height:0}
+@media(max-width:1000px){.grid2{grid-template-columns:1fr}}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 th{text-align:left;color:var(--tx2);font-weight:400;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:6px 8px;border-bottom:1px solid #f0eeea}
 tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:#fbfaf7}
 /* 数字列的表头必须跟内容一样右对齐，否则表头在左、数字在右，整列看着就错位 */
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
-.bar{height:6px;border-radius:3px;background:#e8e6df;overflow:hidden}
-.bar i{display:block;height:100%;background:var(--accent);border-radius:3px;min-width:2px}
+.bar{height:5px;border-radius:3px;background:#f1efea;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:3px;min-width:2px;
+  background:linear-gradient(90deg,#7d74d4,#534ab7)}
 .tag{display:inline-block;padding:0 7px;border-radius:20px;background:#eeecf8;color:#534ab7;font-size:11px}
-.mrow{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:12px}
-.mrow .nm{width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx2)}
-.mrow .tr{flex:1;height:14px;background:#f0eeea;border-radius:4px;overflow:hidden}
-.mrow .tr i{display:block;height:100%;background:var(--accent);border-radius:4px}
-.mrow .v{min-width:74px;text-align:right;font-variant-numeric:tabular-nums;color:var(--tx3);white-space:nowrap}
+/* ---- 模型分布：名称+数值一行，进度条整行铺满，模型名再长也不会挤坏版面 ---- */
+.mitem{margin-bottom:12px}
+.mitem:last-child{margin-bottom:0}
+.mtop{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+.mname{flex:1;min-width:0;font-size:12.5px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mval{font-size:12px;color:var(--tx2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.mshare{min-width:46px;text-align:right;font-size:11px;color:var(--tx3);font-variant-numeric:tabular-nums}
+.mtrack{height:6px;border-radius:3px;background:#f1efea;overflow:hidden}
+.mtrack i{display:block;height:100%;border-radius:3px;min-width:3px;
+  background:linear-gradient(90deg,#6f66d0,#534ab7)}
+.mtrack i.r1{background:linear-gradient(90deg,#9d95dd,#837ad2)}
+.mtrack i.r2{background:linear-gradient(90deg,#c6c1e8,#b3acdf)}
+.mnote{font-size:11.5px;color:var(--tx3);margin-top:11px;padding-top:9px;border-top:1px solid #f2f0eb}
+
+/* ---- 活跃时段：24 根竖条，纯 CSS 撑高，随卡片一起伸缩 ---- */
+.hours{flex:1;display:flex;flex-direction:column;min-height:0}
+.hbars{flex:1;display:flex;align-items:flex-end;gap:3px;min-height:86px;border-bottom:1px solid #f2f0eb}
+.hb{flex:1;height:100%;display:flex;align-items:flex-end;cursor:default}
+.hb i{display:block;width:100%;border-radius:3px 3px 0 0;background:#cdc8e9;
+  transition:background .12s}
+.hb.pk i{background:linear-gradient(180deg,#7d74d4,#534ab7)}
+.hb:hover i{background:#534ab7}
+.haxis{display:flex;gap:3px;margin-top:6px}
+.haxis span{flex:1;text-align:center;font-size:10px;color:var(--tx3);
+  font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
+.hb.z i{background:#e9e6f2}
+.hfoot{margin-top:7px;font-size:11.5px;color:var(--tx3);display:flex;justify-content:space-between;
+  align-items:baseline;gap:10px;min-height:17px}
+.hfoot b{font-weight:400;color:var(--tx2);font-variant-numeric:tabular-nums}
 .empty{color:var(--tx3);font-size:12.5px;padding:18px 0;text-align:center}
 
 /* ---- 会话检索 ---- */
@@ -155,33 +188,46 @@ body.u-K .stbl col.c2{width:108px}
   </div>
 
   <div class="grid2">
-    <div class="card">
-      <h2>模型分布 <span id="modelNote">按总 token</span></h2>
-      <div id="models"></div>
+    <div class="col">
+      <div class="card">
+        <h2>模型分布 <span id="modelNote">按总 token</span></h2>
+        <div id="models"></div>
+        <div class="mnote" id="modelFoot"></div>
+      </div>
+      <div class="card grow">
+        <h2>活跃时段 <span id="hourNote">近 7 天 · 按小时</span></h2>
+        <div class="hours">
+          <div class="hbars" id="hbars"></div>
+          <div class="haxis" id="haxis"></div>
+          <div class="hfoot"><span id="hourTip">—</span><span id="hourSum"></span></div>
+        </div>
+      </div>
     </div>
-    <div class="card">
-      <h2>会话消耗 <span id="sessNote">按计费积分</span></h2>
-      <div class="sbox" id="sbox">
-        <input id="q" type="search" autocomplete="off" spellcheck="false"
-               placeholder="输入会话名称检索，覆盖全部历史会话">
-        <button class="clr" id="qclr" title="清空" aria-label="清空">×</button>
-      </div>
-      <div class="sess-wrap" id="sessWrap">
-        <table class="stbl">
-          <colgroup>
-            <col><col class="c2"><col class="c3">
-            <col class="c4"><col class="c5">
-          </colgroup>
-          <thead><tr>
-            <th>会话</th><th class="num">占用</th><th></th>
-            <th class="num">积分</th><th class="num">活跃</th>
-          </tr></thead>
-          <tbody id="sess"></tbody>
-        </table>
-      </div>
-      <div class="sess-foot">
-        <span id="sessInfo"></span>
-        <span id="sessMore"></span>
+    <div class="col">
+      <div class="card grow">
+        <h2>会话消耗 <span id="sessNote">按计费积分</span></h2>
+        <div class="sbox" id="sbox">
+          <input id="q" type="search" autocomplete="off" spellcheck="false"
+                 placeholder="输入会话名称检索，覆盖全部历史会话">
+          <button class="clr" id="qclr" title="清空" aria-label="清空">×</button>
+        </div>
+        <div class="sess-wrap" id="sessWrap">
+          <table class="stbl">
+            <colgroup>
+              <col><col class="c2"><col class="c3">
+              <col class="c4"><col class="c5">
+            </colgroup>
+            <thead><tr>
+              <th>会话</th><th class="num">占用</th><th></th>
+              <th class="num">积分</th><th class="num">活跃</th>
+            </tr></thead>
+            <tbody id="sess"></tbody>
+          </table>
+        </div>
+        <div class="sess-foot">
+          <span id="sessInfo"></span>
+          <span id="sessMore"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -406,20 +452,110 @@ function chartMove(e){
 $('daily').addEventListener('mousemove', chartMove);
 $('daily').addEventListener('mouseleave', clearHover);
 
-/* ---------- 模型（跟随所选范围） ---------- */
+/* ---------- 模型（跟随所选范围，只取用量前 3，避免模型多了把卡片撑长） ---------- */
+const MODEL_TOP = 3;
+
 function renderModels(d){
   const ser = SERIES[GRAN] || {};
-  const ms = (ser.models && ser.models.length) ? ser.models : (d.models || []);
-  const note = $('modelNote');
+  const all = ((ser.models && ser.models.length) ? ser.models : (d.models || []))
+    .slice().sort((a, b) => (b.total || 0) - (a.total || 0));
+  const note = $('modelNote'), foot = $('modelFoot'), box = $('models');
   if(note) note.textContent = `按总 token · ${GRAN_LABEL[GRAN]}`;
-  if(!ms.length){ $('models').innerHTML = '<div class="empty">该范围内暂无数据</div>'; return; }
-  const max = Math.max(...ms.map(m=>m.total), 1);
-  $('models').innerHTML = ms.map(m =>
-    `<div class="mrow"><span class="nm" title="${esc(m.model)}">${esc(m.model)}</span>
-     <span class="tr"><i style="width:${(m.total/max*100).toFixed(1)}%"></i></span>
-     <span class="v">${fmtTok(m.total)}</span></div>`
-  ).join('');
+  if(!all.length){
+    box.innerHTML = '<div class="empty">该范围内暂无数据</div>';
+    if(foot) foot.textContent = '';
+    return;
+  }
+  // 占比按全部模型合计算，不是只按前三算，否则三个比例相加永远等于 100%，会误导
+  const sum = all.reduce((a, m) => a + (m.total || 0), 0) || 1;
+  const top = all.slice(0, MODEL_TOP);
+  const max = Math.max(...top.map(m => m.total || 0), 1);
+  box.innerHTML = top.map((m, i) => {
+    const t = m.total || 0;
+    const pct = t / sum * 100;
+    // 小模型占比可能只有万分之几，写 0.0% 会被读成“一点没用”，给个下界更诚实
+    const share = !t ? '—' : (pct >= 0.1 ? pct.toFixed(1) + '%' : '<0.1%');
+    return `<div class="mitem">
+      <div class="mtop">
+        <span class="mname" title="${esc(m.model)}">${esc(m.model)}</span>
+        <span class="mval">${fmtTok(t)}</span>
+        <span class="mshare">${share}</span>
+      </div>
+      <div class="mtrack"><i class="r${i}" style="width:${(t / max * 100).toFixed(1)}%"></i></div>
+    </div>`;
+  }).join('');
+  const rest = all.length - top.length;
+  if(foot) foot.textContent = rest > 0
+    ? `仅显示用量前 ${top.length} · 另有 ${rest} 个模型未展开`
+    : `共 ${all.length} 个模型`;
 }
+
+/* ---------- 活跃时段：近 7 天按「小时」聚合 ----------
+   hourly 是服务端按 日期+小时 落的分桶，这里折成 0~23 点看作息。
+   故意不跟随范围切换：小时粒度跨月、跨年没有意义，标题里写清口径就行。 */
+const HOUR_TICKS = new Set([0, 6, 12, 18, 23]);
+const HOURS = {v: [], sum: 0, peak: -1, sig: ''};
+
+function renderHours(d){
+  const hs = (d && d.hourly) || [];
+  const v = new Array(24).fill(0);
+  const days = new Set();
+  for(const x of hs){
+    const k = String(x.hour || '');
+    if(k.length < 13) continue;
+    const hh = parseInt(k.slice(11, 13), 10);
+    if(!(hh >= 0 && hh <= 23)) continue;
+    v[hh] += Number(x.total) || 0;
+    days.add(k.slice(0, 10));
+  }
+  const sum = v.reduce((a, b) => a + b, 0);
+  const bars = $('hbars'), axis = $('haxis');
+  const tip = $('hourTip'), sumEl = $('hourSum'), note = $('hourNote');
+
+  if(!sum){
+    bars.innerHTML = ''; axis.innerHTML = '';
+    if(tip) tip.textContent = '暂无小时级数据';
+    if(sumEl) sumEl.textContent = '';
+    HOURS.v = []; HOURS.sum = 0; HOURS.peak = -1; HOURS.sig = '';
+    return;
+  }
+  if(note) note.textContent = `近 7 天 · ${days.size} 天有记录`;
+  if(sumEl) sumEl.innerHTML = `合计 <b>${fmtTok(sum)}</b>`;
+
+  // 数据没变就别重建 DOM，否则每秒推送都会把用户正悬停的那根柱子打回峰值
+  const sig = sum + '|' + v.join(',');
+  if(sig === HOURS.sig) return;
+
+  const max = Math.max(...v);
+  const peak = v.indexOf(max);
+  HOURS.v = v; HOURS.sum = sum; HOURS.peak = peak; HOURS.sig = sig;
+
+  bars.innerHTML = v.map((val, i) => {
+    const pct = val ? Math.max(val / max * 100, 1.6).toFixed(1) + '%' : '3px';
+    const cls = i === peak ? 'hb pk' : (val ? 'hb' : 'hb z');
+    return `<div class="${cls}" data-i="${i}"><i style="height:${pct}"></i></div>`;
+  }).join('');
+  axis.innerHTML = v.map((_, i) =>
+    `<span>${HOUR_TICKS.has(i) ? String(i).padStart(2, '0') : ''}</span>`).join('');
+  setHourTip(peak);
+}
+
+function setHourTip(i){
+  const tip = $('hourTip');
+  if(!tip || i < 0 || !HOURS.v.length) return;
+  const v = HOURS.v[i] || 0;
+  const share = HOURS.sum ? v / HOURS.sum * 100 : 0;
+  const hh = String(i).padStart(2, '0') + ':00';
+  tip.innerHTML = (i === HOURS.peak)
+    ? `峰值 <b>${hh}</b> · 占 ${share.toFixed(1)}%`
+    : `<b>${hh}</b> · ${fmtTok(v)} · 占 ${share.toFixed(1)}%`;
+}
+
+$('hbars').addEventListener('mouseover', e => {
+  const el = e.target.closest('.hb');
+  if(el) setHourTip(parseInt(el.dataset.i, 10));
+});
+$('hbars').addEventListener('mouseleave', () => setHourTip(HOURS.peak));
 
 /* ---------- 会话检索（服务端分页，覆盖全部历史会话） ---------- */
 const SESS = {q:'', items:[], total:0, page:24, busy:false, done:false, err:false};
@@ -564,6 +700,7 @@ function render(d){
   renderKpis(d);
   renderChart();
   renderModels(d);
+  renderHours(d);
   renderHealth(d);
   $('hint').textContent = `统计范围：${GRAN_LABEL[GRAN]} · 数值单位：${UNIT_LABEL[UNIT]} · 积分卡为全部会话累计`;
   $('upd').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN', {hour12:false});
