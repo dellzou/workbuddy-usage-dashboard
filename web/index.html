@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WorkBuddy 实时用量</title>
+<style>
+:root{
+  --bg:#f7f7f5;--card:#fff;--line:#e6e4de;--tx:#2c2c2a;--tx2:#6b6a66;--tx3:#9a9993;
+  --accent:#534ab7;--cached:#9fe1cb;--newin:#378add;--out:#7f77dd;--warn:#ef9f27;
+  --ok:#0f6e56;--bad:#a32d2d;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;padding:24px 28px 56px}
+.wrap{max-width:1180px;margin:0 auto}
+header{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+h1{font-size:18px;font-weight:500}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
+.dot.bad{background:var(--bad)}
+.dot.wait{background:var(--tx3)}
+.meta{color:var(--tx3);font-size:12px;margin-left:auto;display:flex;align-items:center;gap:6px}
+.banner{display:none;background:#faeeda;border:1px solid #ef9f27;color:#633806;
+  border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px}
+.banner.show{display:block}
+.banner b{font-weight:500}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(166px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+.kpi .lab{color:var(--tx2);font-size:12px;margin-bottom:5px}
+.kpi .val{font-size:21px;font-weight:500;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.kpi .sub{color:var(--tx3);font-size:11px;margin-top:2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.card h2{font-size:13.5px;font-weight:500;margin-bottom:12px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.card h2 span{font-size:11.5px;font-weight:400;color:var(--tx3)}
+svg{display:block;width:100%;height:auto}
+.legend{display:flex;gap:16px;margin-top:8px;font-size:11.5px;color:var(--tx2);flex-wrap:wrap}
+.legend i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:1px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:880px){.grid2{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;color:var(--tx2);font-weight:400;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid #f0eeea}
+tr:last-child td{border-bottom:none}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:3px;background:#e8e6df;overflow:hidden;min-width:48px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:3px;min-width:2px}
+.tag{display:inline-block;padding:0 7px;border-radius:20px;background:#eeecf8;color:#534ab7;font-size:11px}
+.mrow{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:12px}
+.mrow .nm{width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx2)}
+.mrow .tr{flex:1;height:14px;background:#f0eeea;border-radius:4px;overflow:hidden}
+.mrow .tr i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.mrow .v{width:64px;text-align:right;font-variant-numeric:tabular-nums;color:var(--tx3)}
+.empty{color:var(--tx3);font-size:12.5px;padding:18px 0;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>WorkBuddy 实时用量</h1>
+    <div class="meta">
+      <span class="dot wait" id="dot"></span>
+      <span id="conn">连接中</span>
+      <span>·</span>
+      <span id="upd">—</span>
+    </div>
+  </header>
+
+  <div class="banner" id="banner"></div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="card">
+    <h2>每日 token 消耗 <span>柱为输入（缓存 / 新增），折线为输出</span></h2>
+    <svg id="daily" viewBox="0 0 1000 260" preserveAspectRatio="none"></svg>
+    <div class="legend">
+      <span><i style="background:#9fe1cb"></i>命中缓存</span>
+      <span><i style="background:#378add"></i>新增输入</span>
+      <span><i style="background:#7f77dd"></i>输出（右轴）</span>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>模型分布 <span>按总 token</span></h2>
+      <div id="models"></div>
+    </div>
+    <div class="card">
+      <h2>会话消耗 <span>按计费积分</span></h2>
+      <table id="sess"></table>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const f = n => n>=1e6 ? (n/1e6).toFixed(2)+'M' : n>=1e3 ? (n/1e3).toFixed(1)+'k' : String(Math.round(n||0));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let DATA = null;
+
+/* ---------- KPI ---------- */
+function renderKpis(d){
+  const t = d.totals;
+  const inAll = t.input_new + t.input_cached;
+  const hit = inAll ? t.input_cached / inAll * 100 : 0;
+  const think = t.output ? t.output_reasoning / t.output * 100 : 0;
+  const credit = (d.sessions||[]).reduce((a,s)=>a+(s.credit||0),0);
+  const items = [
+    ['总 token', f(t.total), `${t.requests.toLocaleString()} 次请求`],
+    ['新增输入', f(t.input_new), '未命中缓存'],
+    ['命中缓存', f(t.input_cached), `占输入 ${hit.toFixed(1)}%`],
+    ['输出', f(t.output), `其中思考 ${f(t.output_reasoning)}`],
+    ['思考占比', think.toFixed(1)+'%', '输出里用于推理'],
+    ['计费积分', credit.toFixed(1), '会话累计'],
+  ];
+  $('kpis').innerHTML = items.map(k =>
+    `<div class="kpi"><div class="lab">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`
+  ).join('');
+}
+
+/* ---------- 每日图（手写 SVG，零依赖） ---------- */
+function renderDaily(d){
+  const svg = $('daily');
+  const daily = d.daily || [];
+  if(!daily.length){ svg.innerHTML = ''; return; }
+  const W=1000, H=260, L=56, R=64, T=14, B=30;
+  const iw = W-L-R, ih = H-T-B;
+  const n = daily.length;
+  const maxIn = Math.max(1, ...daily.map(x => x.input_cached + x.input_new));
+  const maxOut = Math.max(1, ...daily.map(x => x.output));
+  const bw = Math.min(46, iw / n * 0.56);
+  const step = iw / n;
+  const yIn = v => T + ih - v/maxIn*ih;
+  const yOut = v => T + ih - v/maxOut*ih;
+  const parts = [];
+
+  // 横向网格 + 左轴
+  for(let g=0; g<=4; g++){
+    const y = T + ih*g/4;
+    parts.push(`<line x1="${L}" y1="${y}" x2="${W-R}" y2="${y}" stroke="#f0eeea" stroke-width="1"/>`);
+    parts.push(`<text x="${L-8}" y="${y+4}" text-anchor="end" font-size="11" fill="#9a9993">${f(maxIn*(1-g/4))}</text>`);
+    parts.push(`<text x="${W-R+8}" y="${y+4}" font-size="11" fill="#7f77dd">${f(maxOut*(1-g/4))}</text>`);
+  }
+
+  // 柱 + 折线
+  const pts = [];
+  daily.forEach((x, i) => {
+    const cx = L + step*i + step/2;
+    const x0 = cx - bw/2;
+    const hC = x.input_cached/maxIn*ih;
+    const hN = x.input_new/maxIn*ih;
+    parts.push(`<rect x="${x0}" y="${T+ih-hC}" width="${bw}" height="${hC}" fill="#9fe1cb"/>`);
+    parts.push(`<rect x="${x0}" y="${T+ih-hC-hN}" width="${bw}" height="${hN}" fill="#378add"/>`);
+    parts.push(`<text x="${cx}" y="${H-10}" text-anchor="middle" font-size="11" fill="#9a9993">${x.day.slice(5)}</text>`);
+    pts.push([cx, yOut(x.output)]);
+    parts.push(`<circle cx="${cx}" cy="${yOut(x.output)}" r="3" fill="#fff" stroke="#7f77dd" stroke-width="2"><title>${x.day} · 输出 ${x.output.toLocaleString()}</title></circle>`);
+  });
+  parts.push(`<polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="#7f77dd" stroke-width="2"/>`);
+  svg.innerHTML = parts.join('');
+}
+
+/* ---------- 模型 ---------- */
+function renderModels(d){
+  const ms = d.models || [];
+  if(!ms.length){ $('models').innerHTML = '<div class="empty">暂无数据</div>'; return; }
+  const max = Math.max(...ms.map(m=>m.total), 1);
+  $('models').innerHTML = ms.map(m =>
+    `<div class="mrow"><span class="nm" title="${esc(m.model)}">${esc(m.model)}</span>
+     <span class="tr"><i style="width:${(m.total/max*100).toFixed(1)}%"></i></span>
+     <span class="v">${f(m.total)}</span></div>`
+  ).join('');
+}
+
+/* ---------- 会话表 ---------- */
+function renderSessions(d){
+  const ss = d.sessions || [];
+  if(!ss.length){ $('sess').innerHTML = '<tr><td class="empty">暂无会话</td></tr>'; return; }
+  const maxC = Math.max(...ss.map(s=>s.credit), 1);
+  $('sess').innerHTML =
+    '<tr><th>会话</th><th class="num">占用</th><th style="width:70px"></th><th class="num">积分</th></tr>' +
+    ss.slice(0,10).map(s=>`<tr>
+      <td title="${esc(s.title)}">${esc(s.title.length>28 ? s.title.slice(0,28)+'…' : s.title)}</td>
+      <td class="num" style="font-size:11.5px;color:#6b6a66">${f(s.ctx_used)}/${f(s.ctx_size)}</td>
+      <td><div class="bar"><i style="width:${Math.min(s.ctx_used/s.ctx_size*100,100).toFixed(0)}%"></i></div></td>
+      <td class="num">${(s.credit||0).toFixed(1)}<div class="bar" style="margin-top:3px"><i style="width:${((s.credit||0)/maxC*100).toFixed(0)}%"></i></div></td>
+    </tr>`).join('');
+}
+
+/* ---------- 健康 ---------- */
+function renderHealth(d){
+  const h = d.health || {status:'OK'};
+  const dot = $('dot');
+  if(h.status === 'DEGRADED'){
+    dot.className = 'dot bad';
+    $('conn').textContent = '数据降级';
+    const why = (h.reasons||[]).map(esc).join('；');
+    $('banner').className = 'banner show';
+    $('banner').innerHTML = `<b>采集降级</b>（自 ${String(h.since||'').slice(11,19)}）：${why}。界面显示的是最后一次有效数据。`;
+  } else {
+    dot.className = 'dot';
+    $('conn').textContent = '实时';
+    $('banner').className = 'banner';
+  }
+}
+
+function render(d){
+  DATA = d;
+  renderKpis(d); renderDaily(d); renderModels(d); renderSessions(d); renderHealth(d);
+  $('upd').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN', {hour12:false});
+}
+
+/* ---------- SSE ---------- */
+function connect(){
+  const es = new EventSource('/api/stream');
+  es.addEventListener('snapshot', e => render(JSON.parse(e.data)));
+  es.addEventListener('update',   e => render(JSON.parse(e.data)));
+  es.onopen = () => { $('conn').textContent = '实时'; };
+  es.onerror = () => {
+    if(!DATA){ $('dot').className = 'dot wait'; $('conn').textContent = '重连中'; }
+    // EventSource 会自动重连，这里不主动 close
+  };
+}
+/* 默认走 SSE；加 ?static=1 则只拉一次快照（用于截图/离线调试，避免长连接挂住渲染） */
+if(new URLSearchParams(location.search).get('static') === '1'){
+  fetch('/api/snapshot').then(r=>r.json()).then(render).catch(()=>{
+    $('conn').textContent = '快照失败';
+  });
+} else {
+  connect();
+}
+</script>
+</body>
+</html>
