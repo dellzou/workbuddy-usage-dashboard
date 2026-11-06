@@ -50,8 +50,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _file(self, rel: str):
-        path = os.path.join(config.WEB_DIR, rel)
-        if not os.path.isfile(path):
+        root = os.path.realpath(config.WEB_DIR)
+        path = os.path.realpath(os.path.join(root, rel))
+        # 只允许读 web 目录内部：/static/../config.py 这类穿越之前是能读到源码的
+        if not (path == root or path.startswith(root + os.sep)) or not os.path.isfile(path):
             self._json({"error": "not found", "path": rel}, 404)
             return
         ext = os.path.splitext(path)[1].lower()
@@ -69,7 +71,15 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- 路由 ----------
 
+    def _host_ok(self) -> bool:
+        """只接受本机 Host，防止 DNS rebinding 让外部网页读到本地用量与会话标题。"""
+        raw = (self.headers.get("Host") or "").strip().lower()
+        host = raw.rsplit(":", 1)[0] if raw.count(":") == 1 else raw
+        return host in ("127.0.0.1", "localhost", "[::1]", "::1")
+
     def do_GET(self):
+        if not self._host_ok():
+            return self._json({"error": "forbidden host"}, 403)
         route = urlparse(self.path).path
         engine: Engine = self.server.engine
 

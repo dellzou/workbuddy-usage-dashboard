@@ -44,6 +44,20 @@ h1{font-size:18px;font-weight:500}
 .card h2{font-size:13.5px;font-weight:500;margin-bottom:12px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .card h2 span{font-size:11.5px;font-weight:400;color:var(--tx3);text-align:right}
 svg{display:block;width:100%;height:auto}
+/* ---- 趋势图悬停 ---- */
+.card.chart{position:relative}
+#daily{cursor:crosshair}
+.tip{position:absolute;left:0;top:0;z-index:6;display:none;pointer-events:none;
+  min-width:190px;max-width:252px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;
+  background:rgba(255,255,255,.97);box-shadow:0 8px 24px rgba(44,44,42,.13);
+  font-size:11.5px;line-height:1.62;color:var(--tx)}
+.tip.show{display:block}
+.tip .tt{font-weight:500;font-size:12px;margin-bottom:1px;white-space:nowrap}
+.tip .ttr{font-size:10.5px;color:var(--tx3);margin-bottom:4px;white-space:nowrap}
+.tip .rw{display:flex;justify-content:space-between;gap:16px;white-space:nowrap}
+.tip .rw b{font-weight:400;color:var(--tx2)}
+.tip .rw i{font-style:normal;font-variant-numeric:tabular-nums;color:var(--tx)}
+.tip .hr{height:1px;background:#f0eeea;margin:5px 0}
 .legend{display:flex;gap:16px;margin-top:8px;font-size:11.5px;color:var(--tx2);flex-wrap:wrap}
 .legend i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:1px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
@@ -129,9 +143,10 @@ body.u-K .stbl col.c2{width:108px}
 
   <div class="kpis" id="kpis"></div>
 
-  <div class="card">
+  <div class="card chart">
     <h2>token 消耗趋势 <span id="chartNote"></span></h2>
     <svg id="daily" viewBox="0 0 1000 260" preserveAspectRatio="none"></svg>
+    <div class="tip" id="tip" role="tooltip"></div>
     <div class="legend">
       <span><i style="background:#9fe1cb"></i>命中缓存</span>
       <span><i style="background:#378add"></i>新增输入</span>
@@ -247,7 +262,7 @@ function renderChart(){
   const svg = $('daily');
   const ser = SERIES[GRAN];
   const bs = ser.buckets || [];
-  if(!bs.length){ svg.innerHTML = ''; return; }
+  if(!bs.length){ svg.innerHTML = ''; CG = null; clearHover(); return; }
 
   // 按单位预留轴宽：原始值位数最多，K 次之，M 最短
   const W=1000, H=260, T=14, B=30;
@@ -271,14 +286,16 @@ function renderChart(){
   }
 
   const pts = [];
+  const geo = {L, T, ih, step, bw, n, cx:[], x0:[], seg:[]};   // 悬停命中用的几何，和柱子一起算出来
   bs.forEach((x, i) => {
     const cx = L + step*i + step/2;
     const x0 = cx - bw/2;
     const hC = (x.input_cached||0)/maxIn*ih;
     const hN = (x.input_new||0)/maxIn*ih;
-    const tip = `${x.from}${x.to && x.to!==x.from ? ' ~ '+x.to : ''}\n命中缓存 ${fmtTok(x.input_cached)}\n新增输入 ${fmtTok(x.input_new)}\n输出 ${fmtTok(x.output)}\n合计 ${fmtTok(x.total)}\n${(x.requests||0).toLocaleString()} 次请求`;
+    geo.cx.push(cx); geo.x0.push(x0);
+    geo.seg.push([{y:T+ih-hC, h:hC}, {y:T+ih-hC-hN, h:hN}]);
     // 透明热区：整列都能悬停，不用精确点到柱子上
-    parts.push(`<rect x="${L+step*i}" y="${T}" width="${step}" height="${ih}" fill="transparent"><title>${esc(tip)}</title></rect>`);
+    parts.push(`<rect x="${L+step*i}" y="${T}" width="${step}" height="${ih}" fill="transparent"/>`);
     parts.push(`<rect x="${x0}" y="${T+ih-hC}" width="${bw}" height="${hC}" fill="#9fe1cb"/>`);
     parts.push(`<rect x="${x0}" y="${T+ih-hC-hN}" width="${bw}" height="${hN}" fill="#378add"/>`);
     parts.push(`<text x="${cx}" y="${H-10}" text-anchor="middle" font-size="${n>8?10:11}" fill="#9a9993">${esc(x.label)}</text>`);
@@ -290,11 +307,104 @@ function renderChart(){
   if(ser.totals.total === 0){
     parts.push(`<text x="${L+iw/2}" y="${T+ih/2}" text-anchor="middle" font-size="12" fill="#9a9993">该范围内暂无数据</text>`);
   }
-  svg.innerHTML = parts.join('');
+  svg.innerHTML = parts.join('') + '<g id="hv" pointer-events="none"></g>';
+  CG = geo;
+
+  // 刷新快照时保持当前悬停的桶，数字全部按新数据重算；换粒度/单位则已在上层清掉
+  if(TIP.idx >= 0 && TIP.idx < n){
+    paintHover(TIP.idx);
+    showTip(TIP.idx, TIP.mx, TIP.my);
+  } else {
+    clearHover();
+  }
 
   const t = ser.totals;
   $('chartNote').textContent = `${GRAN_LABEL[GRAN]} · 合计 ${fmtTok(t.total)} · ${t.requests.toLocaleString()} 次请求`;
 }
+
+/* ---------- 趋势图悬停：参考线 + 柱子描边 + 浮动明细 ---------- */
+let CG = null;                                    // 当前图表的几何（viewBox 坐标）
+const TIP = {idx:-1, mx:0, my:0};
+
+function clearHover(){
+  TIP.idx = -1;
+  const hv = $('hv'); if(hv) hv.innerHTML = '';
+  const tip = $('tip'); if(tip) tip.classList.remove('show');
+}
+
+function paintHover(i){
+  const g = CG, hv = $('hv');
+  if(!g || !hv || i < 0 || i >= g.n) return;
+  const p = [];
+  // 整列淡淡的底色 + 竖参考线，配色沿用强调色 #534ab7
+  p.push(`<rect x="${g.L + g.step*i}" y="${g.T}" width="${g.step}" height="${g.ih}" fill="#534ab7" opacity=".05"/>`);
+  p.push(`<line x1="${g.cx[i]}" y1="${g.T}" x2="${g.cx[i]}" y2="${g.T + g.ih}" stroke="#534ab7" stroke-width="1" stroke-dasharray="3 3" opacity=".55"/>`);
+  // 该桶每段柱子单独描边，等于把这一根柱子的轮廓加深
+  g.seg[i].forEach(s => {
+    if(s.h > 0.4)
+      p.push(`<rect x="${g.x0[i]}" y="${s.y}" width="${g.bw}" height="${s.h}" fill="none" stroke="#534ab7" stroke-width="1.2"/>`);
+  });
+  hv.innerHTML = p.join('');
+}
+
+function showTip(i, clientX, clientY){
+  const ser = SERIES && SERIES[GRAN];
+  const b = ser && ser.buckets && ser.buckets[i];
+  const tip = $('tip'), card = tip && tip.parentElement;
+  if(!b || !tip || !card) return;
+  TIP.idx = i; TIP.mx = clientX; TIP.my = clientY;
+
+  const reqs = b.requests || 0;
+  const inAll = (b.input_cached || 0) + (b.input_new || 0);
+  const hit = inAll ? (b.input_cached || 0) / inAll * 100 : 0;
+  const avg = reqs ? (b.output || 0) / reqs : 0;
+  const share = (ser.totals && ser.totals.total) ? (b.total || 0) / ser.totals.total * 100 : 0;
+  const range = b.from ? (b.to && b.to !== b.from ? `${b.from} ~ ${b.to}` : String(b.from)) : '';
+  const rw = (k, v) => `<div class="rw"><b>${k}</b><i>${v}</i></div>`;
+  tip.innerHTML =
+    `<div class="tt">${esc(b.label)}</div>${range ? `<div class="ttr">${esc(range)}</div>` : ''}<div class="hr"></div>`
+    + rw('请求数', reqs.toLocaleString() + ' 次')
+    + rw('新增输入', fmtTok(b.input_new))
+    + rw('命中缓存', fmtTok(b.input_cached))
+    + rw('输出', fmtTok(b.output))
+    + rw('· 其中推理', fmtTok(b.output_reasoning))
+    + rw('合计', fmtTok(b.total))
+    + rw('占所选范围', share.toFixed(1) + '%')
+    + '<div class="hr"></div>'
+    // 单次请求的输出只有几百 token，跟着 M/K 走会一律显示成 0.00M，这里固定按 token 显示
+    + rw('缓存命中率', inAll ? hit.toFixed(1) + '%' : '—')
+    + rw('平均每次输出', reqs ? Math.round(avg).toLocaleString('en-US') + ' token' : '—');
+  tip.classList.add('show');
+
+  // 位置在卡片容器内换算：靠右自动翻到鼠标左侧，并对上下做夹取，保证不溢出卡片
+  const cr = card.getBoundingClientRect();
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  const cw = card.clientWidth, chh = card.clientHeight;
+  let left = clientX - cr.left + 14;
+  if(left + tw > cw - 10) left = clientX - cr.left - tw - 14;
+  left = Math.max(8, Math.min(left, cw - tw - 8));
+  let top = clientY - cr.top + 14;
+  top = Math.max(8, Math.min(top, chh - th - 8));
+  tip.style.left = left.toFixed(1) + 'px';
+  tip.style.top = top.toFixed(1) + 'px';
+}
+
+function chartMove(e){
+  const g = CG, svg = $('daily');
+  if(!g || !svg) return;
+  const r = svg.getBoundingClientRect();
+  if(!r.width) return;
+  // viewBox 1000×260 被 preserveAspectRatio="none" 拉伸过，必须按 rect.width/1000 换算；offsetX 会错位
+  const x = (e.clientX - r.left) * (1000 / r.width);
+  // 夹取而不是丢弃：光标停在左右坐标轴的留白上时，仍然显示最近那个桶，别让提示平白消失
+  const i = Math.max(0, Math.min(g.n - 1, Math.floor((x - g.L) / g.step)));
+  TIP.mx = e.clientX; TIP.my = e.clientY;
+  paintHover(i);
+  showTip(i, e.clientX, e.clientY);
+}
+
+$('daily').addEventListener('mousemove', chartMove);
+$('daily').addEventListener('mouseleave', clearHover);
 
 /* ---------- 模型（跟随所选范围） ---------- */
 function renderModels(d){
@@ -485,8 +595,8 @@ function bindSeg(id, key, onChange){
   return sync;
 }
 
-const syncGran = bindSeg('segGran', 'gran', () => { if(DATA) render(DATA); });
-const syncUnit = bindSeg('segUnit', 'unit', () => { if(DATA) render(DATA); });
+const syncGran = bindSeg('segGran', 'gran', () => { clearHover(); if(DATA) render(DATA); });
+const syncUnit = bindSeg('segUnit', 'unit', () => { clearHover(); if(DATA) render(DATA); });
 
 /* ---------- 实时刷新 ----------
    主通道是 SSE：服务端一有增量就推，页面被动接收，不需要手动刷新。

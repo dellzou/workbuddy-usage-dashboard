@@ -111,6 +111,12 @@ def apply_overrides():
     if "DATA_DIR" in ov:
         g["DB_PATH"] = os.path.join(g["DATA_DIR"], "usage.db")
         g["LOG_DIR"] = os.path.join(g["DATA_DIR"], "logs")
+    # WB_ROOT 变了同理：TRACE_GLOB_DIR / WB_DB_PATH 是在模块顶部算死的，
+    # 不重算的话 config.json 里改 WB_ROOT 完全没效果（env 变量覆盖才会生效）
+    if "WB_ROOT" in ov:
+        g["WB_ROOT"] = os.path.normpath(os.path.expanduser(g["WB_ROOT"]))
+        g["TRACE_GLOB_DIR"] = os.path.join(g["WB_ROOT"], "traces")
+        g["WB_DB_PATH"] = os.path.join(g["WB_ROOT"], "workbuddy.db")
 
 
 apply_overrides()

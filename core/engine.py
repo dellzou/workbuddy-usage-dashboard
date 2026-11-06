@@ -147,11 +147,19 @@ class Engine:
 
         def tick_primary():
             added = 0
+            drifted = False
             for a in self.primary:
                 try:
                     added += a.collect(self.store) or 0
+                    drifted = drifted or bool(getattr(a, "drift_flag", False))
                 except Exception:
                     log.exception("%s 采集异常", getattr(a, "name", "?"))
+            if drifted:
+                # 字段漂移必须立刻反映到能力状态，否则要等 300 秒一次的自检才亮灯
+                self.probe_all()
+                self.refresh_health()
+                self.pulse(force=True)
+                return
             if added:
                 self.refresh_health()
                 self.pulse(added)

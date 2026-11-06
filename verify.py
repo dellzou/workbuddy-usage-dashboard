@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-验证脚本 —— 对应设计方案 §7 的 V1~V11。
+验证脚本 —— 对应设计方案 §7 的 V1~V13。
 
 每一项都输出 PASS/FAIL 和实际数值，判定标准写死在代码里，不靠人工目测。
 全部在临时目录里跑，不碰真实数据。
@@ -303,7 +303,7 @@ def v5_drift(env):
     """每个子用例独立目录，避免互相污染。"""
     cases = []
 
-    def run_case(label, subdir, writer, expect):
+    def run_case(label, subdir, writer, expect, expect_drift=None):
         d = os.path.join(env.root, "v5", subdir)
         os.makedirs(d, exist_ok=True)
         path = os.path.join(d, "trace_x.jsonl")
@@ -311,23 +311,27 @@ def v5_drift(env):
         saved = config.TRACE_GLOB_DIR
         config.TRACE_GLOB_DIR = d
         st = Store(os.path.join(env.root, f"v5_{subdir}.db"))
+        adapter = TraceAdapter()
         try:
-            TraceAdapter().collect(st)
+            adapter.collect(st)
             cnt = st.count()
-            cases.append((label, cnt == expect, f"{label}: 入库 {cnt}（期望 {expect}）"))
+            ok = cnt == expect and (expect_drift is None or adapter.drift_flag == expect_drift)
+            extra = "" if expect_drift is None else f"，漂移标记 {adapter.drift_flag}"
+            cases.append((label, ok, f"{label}: 入库 {cnt}（期望 {expect}）{extra}"))
         except Exception as exc:
             cases.append((label, False, f"{label}: 崩溃 {exc}"))
         finally:
             st.close()
             config.TRACE_GLOB_DIR = saved
 
-    # a) 字段改名：不崩，值降级为 0
+    # a) 字段改名：不崩、不写 0 值、并且亮出漂移标记
+    #    期望值是 0 条而不是 1 条 —— 0 值记录一旦以响应 id 入库，改对映射也补不回来
     def w_rename(p):
         line = make_line("d1", "2026-11-06T04:00:00.000Z")
         with open(p, "w", encoding="utf-8") as fh:
             fh.write(line.replace("prompt_tokens", "prompt_tokens_v2"))
 
-    run_case("字段改名", "a", w_rename, 1)
+    run_case("字段改名", "a", w_rename, 0, expect_drift=True)
 
     # b) 半行截断：不算数
     def w_half(p):
@@ -685,6 +689,114 @@ def v11_session_search(env):
     store.close()
 
 
+# ---------------------------------------------------------------- V12
+
+def v12_security(env):
+    """本地服务的两个现实风险：/static/ 目录穿越、Host 不校验（DNS rebinding）。"""
+    import socket
+    import urllib.error
+    import urllib.request
+
+    import server as srv
+
+    with socket.socket() as s:                 # 让系统分配端口，避免和真实实例抢 17787
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+
+    saved_port = config.PORT
+    saved_glob = config.TRACE_GLOB_DIR
+    config.PORT = port
+    config.TRACE_GLOB_DIR = os.path.join(env.root, "v12-nodata")
+
+    st = Store(os.path.join(env.root, "v12.db"))
+    eng = Engine(st, primary=[], secondary=[])
+    eng.probe_all()
+    httpd = srv.serve(eng)
+    base = f"http://127.0.0.1:{port}"
+
+    def fetch(path, host=None):
+        req = urllib.request.Request(base + path)
+        if host:
+            req.add_header("Host", host)
+        try:
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return r.status, r.read(400)
+        except urllib.error.HTTPError as e:
+            return e.code, e.read(400)
+        except Exception:
+            return 0, b""
+
+    try:
+        checks = []
+        code, _ = fetch("/")
+        checks.append(("首页可用", code == 200))
+
+        code, body = fetch("/static/index.html")
+        checks.append(("正常静态文件", code == 200 and b"<" in body))
+
+        code, body = fetch("/static/../config.py")           # 不折叠 .. 的原始路径
+        leaked = b"USAGE_MAP" in body or b"import config" in body
+        checks.append(("目录穿越被挡", code == 404 and not leaked))
+
+        code, body = fetch("/static/%2e%2e/config.py")       # 编码形式
+        leaked2 = b"USAGE_MAP" in body
+        checks.append(("编码穿越被挡", code in (400, 404) and not leaked2))
+
+        code, _ = fetch("/api/snapshot", host="evil.example.com")
+        checks.append(("伪造 Host 被拒", code == 403))
+    finally:
+        try:
+            httpd.shutdown()
+        except Exception:
+            pass
+        st.close()
+        config.PORT = saved_port
+        config.TRACE_GLOB_DIR = saved_glob
+
+    ok = all(v for _, v in checks)
+    detail = "；".join(f"{k}{'✓' if v else '✗'}" for k, v in checks)
+    record("V12", "本地服务安全（穿越 / Host）", ok, detail)
+
+
+# ---------------------------------------------------------------- V13
+
+def v13_drift_recover(env):
+    """字段改名后不入库、水位不推进；把 USAGE_MAP 改对，落后的那批能补回来。"""
+    d = os.path.join(env.root, "v13")
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, "trace_y.jsonl")
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(make_line("r1", "2026-11-06T06:00:00.000Z").replace("prompt_tokens", "prompt_tokens_v2"))
+
+    saved_dir = config.TRACE_GLOB_DIR
+    saved_map = config.USAGE_MAP
+    config.TRACE_GLOB_DIR = d
+    st = Store(os.path.join(env.root, "v13.db"))
+    a = TraceAdapter()
+    n1 = n2 = -1
+    drifted = False
+    try:
+        a.collect(st)
+        n1, drifted = st.count(), a.drift_flag
+
+        # 模拟「只改配置不改代码」：把候选路径换成新字段名
+        config.USAGE_MAP = {
+            k: [p.replace("prompt_tokens", "prompt_tokens_v2") if p.split(".")[-1].startswith("prompt_tokens") else p
+                for p in cands]
+            for k, cands in saved_map.items()
+        }
+        a.collect(st)
+        n2 = st.count()
+    finally:
+        config.USAGE_MAP = saved_map
+        config.TRACE_GLOB_DIR = saved_dir
+        st.close()
+
+    ok = drifted and n1 == 0 and n2 == 1
+    record("V13", "映射修好后补回漂移行", ok,
+           f"漂移时入库 {n1}（期望 0，且飘移标记 {drifted}），改对映射后 {n2}（期望 1）")
+
+
 # ---------------------------------------------------------------- 主流程
 
 CASES = [
@@ -699,6 +811,8 @@ CASES = [
     ("v9", lambda e: v9_pluggable(e)),
     ("v10", lambda e: v10_granularity(e)),
     ("v11", lambda e: v11_session_search(e)),
+    ("v12", lambda e: v12_security(e)),
+    ("v13", lambda e: v13_drift_recover(e)),
 ]
 
 

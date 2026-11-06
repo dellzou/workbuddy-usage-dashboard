@@ -17,6 +17,7 @@ WorkBuddy 升级后如果采集挂了，90% 的改动应该只发生在本文件
 import glob
 import hashlib
 import json
+import logging
 import os
 from typing import List, Optional
 
@@ -25,9 +26,19 @@ from adapters.base import Adapter
 from contracts import Capability, UsageRecord
 from core.store import Store
 
+log = logging.getLogger(__name__)
+
+# 连续漂移多少轮后放弃回退水位（回退是为了让「改对映射」能补回历史，但无限回退等于原地空转）
+DRIFT_HOLD_MAX = 3
+
 
 class TraceAdapter(Adapter):
     name = "trace"
+
+    def __init__(self):
+        # 字段映射漂移的现场标记：给引擎看，让它立刻把状态推到 DEGRADED，而不是等 5 分钟自检
+        self.drift_flag = False
+        self._drift_streak = 0
 
     # ---------- 定位 ----------
 
@@ -38,6 +49,17 @@ class TraceAdapter(Adapter):
         return sorted(found)
 
     # ---------- 字段映射 ----------
+
+    @staticmethod
+    def _has_positive(node) -> bool:
+        """usage 子树里是否有任何一个正数，用来区分「真的没有用量」和「字段名对不上」。"""
+        if isinstance(node, dict):
+            return any(TraceAdapter._has_positive(v) for v in node.values())
+        if isinstance(node, bool):
+            return False
+        if isinstance(node, (int, float)):
+            return node > 0
+        return False
 
     @staticmethod
     def _pick(node, dotted: str):
@@ -65,8 +87,11 @@ class TraceAdapter(Adapter):
 
     # ---------- 单行解析 ----------
 
-    def parse_line(self, raw: str, path: str, pos: int) -> List[UsageRecord]:
-        """返回该行贡献的记录；非目标行返回空列表；坏行抛异常由调用方计数。"""
+    def parse_line(self, raw: str, path: str, pos: int, stats: Optional[dict] = None) -> List[UsageRecord]:
+        """返回该行贡献的记录；非目标行返回空列表；坏行抛异常由调用方计数。
+
+        stats 用来把「字段映射失效」这件事带出去（不改返回值，保持惰性兼容）。
+        """
         obj = json.loads(raw)
         if obj.get("type") != "span_end":
             return []
@@ -90,10 +115,21 @@ class TraceAdapter(Adapter):
         for resp in arr:
             if not isinstance(resp, dict):
                 continue
-            if not isinstance(resp.get("usage"), dict) or not resp.get("usage"):
+            usage = resp.get("usage")
+            if not isinstance(usage, dict) or not usage:
                 continue
 
             v = self._map_usage(resp)
+            # 判「字段漂移」不能只看全为 0：上游常常只改其中一个名字，
+            # 剩下 total/output 还能读到，于是输入被静默记成 0，比全 0 更隐蔽。
+            # 这里用一条守恒关系兜底：total ≈ input_total + output，偏太多就是映射断了。
+            mapped = v["input_total"] + v["output"]
+            off = bool(v["total"]) and abs(mapped - v["total"]) > max(16, v["total"] * 0.02)
+            blank = not any(v.values()) and self._has_positive(usage)
+            if blank or off:
+                if stats is not None:
+                    stats["drift"] = stats.get("drift", 0) + 1
+                continue
             rid = resp.get("id")
             if not rid:
                 rid = hashlib.md5(f"{path}:{pos}:{resp.get('created')}".encode()).hexdigest()
@@ -120,6 +156,7 @@ class TraceAdapter(Adapter):
 
     def collect(self, store: Store) -> int:
         added = 0
+        drift_round = 0
         for path in self.files():
             try:
                 st = os.stat(path)
@@ -134,6 +171,7 @@ class TraceAdapter(Adapter):
                 continue                      # 无变化，跳过
 
             batch: List[UsageRecord] = []
+            stats = {"drift": 0}
             new_offset = offset
             try:
                 with open(path, "rb") as f:
@@ -150,7 +188,7 @@ class TraceAdapter(Adapter):
                         if not text:
                             continue
                         try:
-                            batch.extend(self.parse_line(text, path, pos))
+                            batch.extend(self.parse_line(text, path, pos, stats))
                         except Exception:
                             continue              # 坏行：跳过，不影响其他行
             except OSError:
@@ -158,7 +196,24 @@ class TraceAdapter(Adapter):
 
             if batch:
                 added += store.insert_records(batch)
+
+            if stats["drift"]:
+                drift_round += stats["drift"]
+                # 水位原地不动，把这段留给「映射改对之后」重读。
+                # 连续多轮都漂移说明不是临时问题，再回退就只是白扫，索性推进水位并靠 DEGRADED 报出来。
+                if self._drift_streak < DRIFT_HOLD_MAX:
+                    store.set_watermark(path, st.st_size, st.st_mtime, offset)
+                    continue
+                log.error("连续 %d 轮字段漂移，停止回退水位：%s", self._drift_streak + 1, path)
             store.set_watermark(path, st.st_size, st.st_mtime, new_offset)
+
+        self._drift_streak = self._drift_streak + 1 if drift_round else 0
+        self.drift_flag = drift_round > 0
+        if drift_round:
+            log.error(
+                "trace 字段映射疑似失效：本轮 %d 条响应带 usage 但五个字段全映射为 0，"
+                "已跳过不入库（去改 config.USAGE_MAP，不要改代码）", drift_round
+            )
         return added
 
     # ---------- 自检 ----------
@@ -194,12 +249,17 @@ class TraceAdapter(Adapter):
             for line in lines:
                 if '"generation"' not in line:
                     continue
+                st = {"drift": 0}
                 try:
-                    self.parse_line(line, path, 0)
-                    parsed += 1
+                    self.parse_line(line, path, 0, st)
+                    # 字段漂移不能算「解析成功」，否则自检永远亮绿灯，而库里全是 0
+                    if st["drift"]:
+                        failed += 1
+                    else:
+                        parsed += 1
                 except Exception:
                     failed += 1
 
         ok = parsed > 0 and (failed / max(parsed + failed, 1)) <= config.DEGRADED_FAIL_RATIO
-        detail = f"抽样 {len(recent)} 个文件" if ok else "样本解析失败率过高，疑似格式变更"
+        detail = f"抽样 {len(recent)} 个文件" if ok else "样本解析失败率过高，疑似格式变更（或 USAGE_MAP 失效）"
         return Capability(self.name, ok, detail, parsed, failed)
