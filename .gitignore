@@ -10,6 +10,9 @@ build/
 dist/
 *.spec
 
+# 本地验收产物（下载回来的 CI 包等）
+.verify/
+
 # 运行时产物
 *.log
 *.db
