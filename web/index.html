@@ -430,23 +430,23 @@ $('qclr').onclick = () => {
 /* ---------- 健康 ---------- */
 function renderHealth(d){
   const h = d.health || {status:'OK'};
-  const dot = $('dot');
-  if(h.status === 'DEGRADED'){
-    dot.className = 'dot bad';
+  DEGRADED = h.status === 'DEGRADED';
+  if(DEGRADED){
+    $('dot').className = 'dot bad';
     $('conn').textContent = '数据降级';
     const why = (h.reasons||[]).map(esc).join('；');
     $('banner').className = 'banner show';
     $('banner').innerHTML = `<b>采集降级</b>（自 ${String(h.since||'').slice(11,19)}）：${why}。界面显示的是最后一次有效数据。`;
   } else {
-    dot.className = 'dot';
-    $('conn').textContent = '实时';
     $('banner').className = 'banner';
+    setConn();
   }
 }
 
 /* ---------- 渲染入口 ---------- */
 function render(d){
   DATA = d;
+  lastDataAt = Date.now();
   SERIES = normalizeSeries(d);
   if(!SERIES[GRAN]) GRAN = 'day';
   document.body.className = 'u-' + UNIT;   // 供 CSS 按单位调整列宽
@@ -487,27 +487,76 @@ function bindSeg(id, key, onChange){
 const syncGran = bindSeg('segGran', 'gran', () => { if(DATA) render(DATA); });
 const syncUnit = bindSeg('segUnit', 'unit', () => { if(DATA) render(DATA); });
 
-/* ---------- SSE ---------- */
+/* ---------- 实时刷新 ----------
+   主通道是 SSE：服务端一有增量就推，页面被动接收，不需要手动刷新。
+   但 SSE 会被系统休眠、代理超时、后台标签冻结掐断，所以再加两道兜底：
+   ① 超过 12 秒没收到任何数据就主动拉一次快照；
+   ② 标签页切回前台立刻拉一次。
+   两条都只是补位，正常情况下不会触发。
+*/
+const IS_STATIC = new URLSearchParams(location.search).get('static') === '1';
+let lastDataAt = 0;
+let sseOpen = false;
+let DEGRADED = false;
+
+function setConn(){
+  const dot = $('dot'), label = $('conn');
+  if(DEGRADED) return;                       // 降级告警优先级更高，别被状态灯覆盖
+  if(IS_STATIC){                             // 截图/离线模式只拉一次，不冒充实时
+    dot.className = 'dot';
+    label.textContent = '快照';
+    return;
+  }
+  if(sseOpen){
+    dot.className = 'dot';
+    label.textContent = '实时';
+  } else if(lastDataAt && Date.now() - lastDataAt < 12000){
+    dot.className = 'dot wait';
+    label.textContent = '轮询中';
+  } else {
+    dot.className = 'dot wait';
+    label.textContent = '重连中';
+  }
+}
+
 function connect(){
+  if(IS_STATIC) return;
   const es = new EventSource('/api/stream');
-  es.addEventListener('snapshot', e => render(JSON.parse(e.data)));
-  es.addEventListener('update',   e => render(JSON.parse(e.data)));
-  es.onopen = () => { $('conn').textContent = '实时'; };
+  const take = e => { render(JSON.parse(e.data)); sseOpen = true; setConn(); };
+  es.addEventListener('snapshot', take);
+  es.addEventListener('update', take);
+  es.onopen = () => { sseOpen = true; setConn(); };
   es.onerror = () => {
-    if(!DATA){ $('dot').className = 'dot wait'; $('conn').textContent = '重连中'; }
+    sseOpen = false;                 // EventSource 自己会重连，这里只更新状态灯
+    setConn();
   };
 }
 
-/* 默认走 SSE；加 ?static=1 则只拉一次快照（用于截图/离线调试，避免长连接挂住渲染） */
-if(new URLSearchParams(location.search).get('static') === '1'){
-  fetch('/api/snapshot').then(r=>r.json()).then(d=>{
-    render(d);
-    if(!SESS.items.length && !SESS.busy) loadSessions(true);   // 带 q 参数时 render 不会自动拉列表
-  }).catch(()=>{ $('conn').textContent = '快照失败'; });
-} else {
-  loadSessions(true);
-  connect();
+async function pullOnce(){
+  try{
+    const r = await fetch('/api/snapshot', {cache: 'no-store'});
+    if(r.ok){ render(await r.json()); setConn(); return true; }
+  }catch(e){ /* 服务还没起来就等下一轮，不弹错误 */ }
+  return false;
 }
+
+setInterval(() => {
+  if(IS_STATIC) return;
+  if(Date.now() - lastDataAt > 12000) pullOnce();
+  else setConn();
+}, 5000);
+
+document.addEventListener('visibilitychange', () => {
+  if(IS_STATIC || document.hidden) return;
+  if(Date.now() - lastDataAt > 3000) pullOnce();   // 后台被冻过，回来补一次
+});
+
+/* 默认先拉一次保证首屏，再挂 SSE；加 ?static=1 则只拉一次（截图/离线调试用） */
+pullOnce().then(ok => {
+  if(!ok && !DATA){ $('conn').textContent = '快照失败'; $('dot').className = 'dot bad'; }
+  if(!IS_STATIC) connect();
+  if(!SESS.items.length && !SESS.busy) loadSessions(true);
+});
 </script>
 </body>
 </html>
