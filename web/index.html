@@ -52,8 +52,9 @@ table{width:100%;border-collapse:collapse;font-size:12.5px}
 th{text-align:left;color:var(--tx2);font-weight:400;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:6px 8px;border-bottom:1px solid #f0eeea}
 tr:last-child td{border-bottom:none}
-td.num{text-align:right;font-variant-numeric:tabular-nums}
-.bar{height:6px;border-radius:3px;background:#e8e6df;overflow:hidden;min-width:30px}
+/* 数字列的表头必须跟内容一样右对齐，否则表头在左、数字在右，整列看着就错位 */
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:3px;background:#e8e6df;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--accent);border-radius:3px;min-width:2px}
 .tag{display:inline-block;padding:0 7px;border-radius:20px;background:#eeecf8;color:#534ab7;font-size:11px}
 .mrow{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:12px}
@@ -82,8 +83,8 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
 .stbl td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stbl td.t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stbl td.ctx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#6b6a66}
-.stbl col.c2{width:86px}.stbl col.c3{width:40px}
-.stbl col.c4{width:52px}.stbl col.c5{width:68px}
+.stbl col.c2{width:86px}.stbl col.c3{width:48px}
+.stbl col.c4{width:52px}.stbl col.c5{width:72px}
 /* 原始值 / K 单位下这列会变长，给足宽度并保留省略兜底 */
 body.u-raw .stbl col.c2{width:124px}
 body.u-K .stbl col.c2{width:108px}
