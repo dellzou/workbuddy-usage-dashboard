@@ -216,10 +216,26 @@ python main.py            # 需要 Python 3.9+
 ### 重新打包 exe
 
 ```bash
-pip install pyinstaller pillow
+cd tools/wb-usage-monitor
+python build.py            # 打包 + 覆盖交付路径
+python build.py --keep     # 只打包到 dist/，不投递
+```
+
+`build.py` 做两件事：用 PyInstaller 出单文件 exe，然后把它复制到
+`../../outputs/WorkBuddy用量看板.exe` 并复核两边 sha256。
+
+**为什么一定要走这个脚本**：产物默认落在 `dist/`，而双击用的是 `outputs/` 下那份。
+只重打 `dist/` 不覆盖 `outputs/`，打开看到的还是老界面 —— 代码明明改了、exe 明明重打了，
+界面却没变，这种问题排查起来极费时间（2026-11-06 实际踩过一次）。
+
+覆盖前必须关掉正在运行的看板，否则 Windows 会锁文件；脚本会重试 3 次后提示。
+
+手工打包也行，但要自己记得复制：
+
+```bash
 python -m PyInstaller --onefile --console --clean --noconfirm \
   --name "WorkBuddy用量看板" --icon app.ico --add-data "web;web" main.py
-# 产物在 dist/
+cp "dist/WorkBuddy用量看板.exe" "../../outputs/WorkBuddy用量看板.exe"
 ```
 
 ### 目录结构
