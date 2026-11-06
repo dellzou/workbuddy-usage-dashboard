@@ -6,6 +6,7 @@ HTTP + SSE 服务（纯标准库，无第三方依赖）。
 路由：
   GET /               看板页面
   GET /api/snapshot   全量快照 JSON
+  GET /api/sessions   会话检索（?q=&offset=&limit=），覆盖全部历史会话
   GET /api/health     健康状态
   GET /api/stream     SSE 增量推送
 
@@ -18,7 +19,7 @@ import os
 import queue
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import config
 from core.engine import Engine
@@ -76,6 +77,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._file("index.html")
         if route == "/api/snapshot":
             return self._json(engine.snapshot())
+        if route == "/api/sessions":
+            return self._sessions(engine)
         if route == "/api/health":
             return self._json({"health": engine.health.to_dict(),
                                "capabilities": {k: v.to_dict() for k, v in engine.caps.items()}})
@@ -84,6 +87,30 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("/static/"):
             return self._file(route[len("/static/"):])
         return self._json({"error": "not found", "route": route}, 404)
+
+    # ---------- 会话检索 ----------
+
+    def _sessions(self, engine: Engine):
+        qs = parse_qs(urlparse(self.path).query)
+
+        def num(key, default, lo, hi):
+            try:
+                return max(lo, min(hi, int((qs.get(key) or [default])[0])))
+            except (TypeError, ValueError):
+                return default
+
+        q = (qs.get("q") or [""])[0][:120]
+        offset = num("offset", 0, 0, 10 ** 6)
+        limit = num("limit", 24, 1, 200)
+        try:
+            rows, total = engine.store.search_sessions(q, offset, limit)
+        except Exception as exc:                              # 检索失败不能把页面搞崩
+            log.exception("会话检索失败")
+            return self._json({"q": q, "total": 0, "offset": offset,
+                               "limit": limit, "sessions": [], "error": str(exc)}, 200)
+        return self._json(
+            {"q": q, "total": total, "offset": offset, "limit": limit, "sessions": rows}
+        )
 
     # ---------- SSE ----------
 

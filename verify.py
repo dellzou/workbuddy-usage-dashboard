@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-验证脚本 —— 对应设计方案 §7 的 V1~V9。
+验证脚本 —— 对应设计方案 §7 的 V1~V11。
 
 每一项都输出 PASS/FAIL 和实际数值，判定标准写死在代码里，不靠人工目测。
 全部在临时目录里跑，不碰真实数据。
@@ -534,6 +534,157 @@ def v9_pluggable(env):
     store.close()
 
 
+def v10_granularity(env):
+    """四种时间粒度的桶必须守恒：桶数对、合计对、模型合计等于 token 合计。"""
+    from datetime import date, timedelta
+
+    store = Store(os.path.join(env.root, "v10.db"))
+    today = date.today()
+    offsets = [0, 3, 10, 40, 400, 800]          # 覆盖日/周/月/年四个窗口
+    truth, recs = {}, []
+    for i, off in enumerate(offsets):
+        d = today - timedelta(days=off)
+        total = (i + 1) * 1000
+        truth[d] = total
+        recs.append(UsageRecord(
+            record_id=f"g{i}", ts=f"{d.isoformat()}T10:00:00",
+            model="m-a" if i % 2 else "m-b",
+            input_new=total // 2, input_cached=total // 2,
+            output=0, output_reasoning=0, total=total,
+            source="test", session_ref=None,
+        ))
+    store.insert_records(recs)
+    ser = store.aggregate()["series"]
+
+    ok, notes = True, []
+    for gran, want in (("day", 7), ("week", 4), ("month", 12), ("year", 3)):
+        if gran not in ser:
+            ok = False
+            notes.append(f"缺 {gran}")
+            continue
+        bs = ser[gran]["buckets"]
+        if len(bs) != want:
+            ok = False
+            notes.append(f"{gran} 桶数 {len(bs)}≠{want}")
+
+        # 独立按窗口重算，不复用 build_series
+        exp = dict.fromkeys(("requests", "input_new", "input_cached",
+                             "output", "output_reasoning", "total"), 0)
+        for b in bs:
+            s, e = date.fromisoformat(b["from"]), date.fromisoformat(b["to"])
+            for d, t in truth.items():
+                if s <= d <= e:
+                    exp["requests"] += 1
+                    exp["total"] += t
+                    exp["input_new"] += t // 2
+                    exp["input_cached"] += t // 2
+        got = ser[gran]["totals"]
+        bad = {k: (got[k], exp[k]) for k in exp if got[k] != exp[k]}
+        if bad:
+            ok = False
+            notes.append(f"{gran} 合计不符 {bad}")
+
+        mt = sum(m["total"] for m in ser[gran]["models"])
+        if mt != got["total"]:
+            ok = False
+            notes.append(f"{gran} 模型合计 {mt}≠{got['total']}")
+
+    # 空桶必须保留，否则趋势图会跳过没干活的日子
+    if not any(b["total"] == 0 for b in ser["day"]["buckets"]):
+        ok = False
+        notes.append("日粒度缺少空桶")
+
+    # 相邻桶首尾必须连续，不能有缝也不能重叠
+    for gran in ("day", "week", "month", "year"):
+        bs = ser[gran]["buckets"]
+        for a, b in zip(bs, bs[1:]):
+            gap = (date.fromisoformat(b["from"]) - date.fromisoformat(a["to"])).days
+            if gap != 1:
+                ok = False
+                notes.append(f"{gran} 桶不连续（间隔 {gap} 天）")
+                break
+
+    record("V10", "时间粒度分桶（7 天/4 周/12 月/3 年）", ok,
+           "；".join(notes) if notes else
+           f"四种粒度桶数 7/4/12/3，合计与独立重算一致，空桶保留，区间连续；"
+           f"日粒度合计 {ser['day']['totals']['total']:,}，年粒度合计 {ser['year']['totals']['total']:,}")
+    store.close()
+
+
+def v11_session_search(env):
+    """会话检索：全量可查、翻页不重不漏、历史上游消失的也能查到。"""
+    from contracts import SessionSnapshot
+
+    store = Store(os.path.join(env.root, "v11.db"))
+
+    def snap(i):
+        return SessionSnapshot(
+            session_ref=f"s{i}",
+            title=(f"预算复核-{i:02d}" if i % 4 == 0 else f"会话-{i:02d}"),
+            model="m", ctx_used=1000 + i, ctx_size=100000, rounds=i,
+            credit=(0.01 if i == 7 else round(i * 7.3, 2)),   # 7 号是最小的那个
+            last_active="2026-11-01T10:00:00",
+        )
+
+    allsnaps = [snap(i) for i in range(48)]
+    store.replace_snapshots(allsnaps)
+    want_budget = sum(1 for i in range(48) if i % 4 == 0)
+
+    ok, notes = True, []
+
+    # 1) 命中数
+    _, total = store.search_sessions("预算", 0, 5)
+    if total != want_budget:
+        ok = False
+        notes.append(f"「预算」命中 {total}≠{want_budget}")
+
+    # 2) 翻页不重不漏
+    seen, offset = [], 0
+    while True:
+        rows, _t = store.search_sessions("预算", offset, 5)
+        if not rows:
+            break
+        seen += [r["session_ref"] for r in rows]
+        offset += 5
+    if len(seen) != want_budget or len(set(seen)) != want_budget:
+        ok = False
+        notes.append(f"翻页收集 {len(seen)} 条、去重 {len(set(seen))} 条，期望 {want_budget}")
+
+    # 3) 消耗极小的会话也要查得到
+    rows, _t = store.search_sessions("会话-07", 0, 10)
+    if len(rows) != 1 or abs(rows[0]["credit"] - 0.01) > 1e-6:
+        ok = False
+        notes.append(f"低消耗会话检索异常（{len(rows)} 条）")
+
+    # 4) 通配符必须被转义，不能把整表匹配出来
+    for bad_q in ("%", "_"):
+        _r, t = store.search_sessions(bad_q, 0, 10)
+        if t != 0:
+            ok = False
+            notes.append(f"通配符 {bad_q} 未转义，命中 {t} 条")
+
+    # 5) 上游已消失的会话仍可检索（分两批写入，模拟会话被关掉）
+    store2 = Store(os.path.join(env.root, "v11b.db"))
+    store2.replace_snapshots(allsnaps[:20])
+    store2.replace_snapshots(allsnaps[20:])          # 前 20 个在上游已不存在
+    rows, t2 = store2.search_sessions("预算", 0, 50)
+    if t2 != want_budget:
+        ok = False
+        notes.append(f"历史会话丢失：命中 {t2}≠{want_budget}")
+    dead = [r for r in rows if not r["live"]]
+    expect_dead = sum(1 for i in range(20) if i % 4 == 0)
+    if len(dead) != expect_dead:
+        ok = False
+        notes.append(f"live 标记异常：离线 {len(dead)}≠{expect_dead}")
+    store2.close()
+
+    record("V11", "会话检索（全量可查 + 翻页不重不漏 + 历史保留）", ok,
+           "；".join(notes) if notes else
+           f"命中 {total} 条与预期一致；分 3 页翻完去重后仍 {want_budget} 条；"
+           f"最小消耗会话可查；% 与 _ 已转义；分批写入后 {len(dead)} 条已离线但仍可检索")
+    store.close()
+
+
 # ---------------------------------------------------------------- 主流程
 
 CASES = [
@@ -546,6 +697,8 @@ CASES = [
     ("v7", lambda e: v7_short_stability(e)),
     ("v8", lambda e: v8_readonly(e)),
     ("v9", lambda e: v9_pluggable(e)),
+    ("v10", lambda e: v10_granularity(e)),
+    ("v11", lambda e: v11_session_search(e)),
 ]
 
 

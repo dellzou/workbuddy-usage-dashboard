@@ -32,13 +32,23 @@ SESSIONS = [
     ("对比两版算法效果", "model-reasoning", 12, 188_000, 600_000),
     ("准备技术分享材料", "model-fast", 9, 72_000, 300_000),
     ("清理历史遗留配置", "model-large", 7, 341_000, 1_000_000),
+    ("设计接口鉴权流程", "model-large", 27, 296_000, 600_000),
+    ("优化列表渲染性能", "model-large", 22, 455_000, 1_000_000),
+    ("补写单元测试", "model-fast", 14, 88_000, 300_000),
+    ("整理数据库迁移方案", "model-large", 19, 372_000, 1_000_000),
+    ("校对发布说明", "model-fast", 6, 41_000, 300_000),
+    ("分析慢查询日志", "model-reasoning", 11, 233_000, 600_000),
+    ("搭建本地调试环境", "model-fast", 8, 57_000, 300_000),
+    ("复现线上异常堆栈", "model-reasoning", 16, 268_000, 600_000),
+    ("规划模块拆分方案", "model-large", 25, 431_000, 1_000_000),
+    ("写数据字典文档", "model-fast", 5, 34_000, 300_000),
 ]
 
 
 class DemoAdapter(Adapter):
     name = "demo"
 
-    def __init__(self, days: int = 7, per_day: int = 180, seed: int = 42):
+    def __init__(self, days: int = 120, per_day: int = 70, seed: int = 42):
         self.days = days
         self.per_day = per_day
         self.seed = seed

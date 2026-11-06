@@ -13,7 +13,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--tx);font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;padding:24px 28px 56px}
 .wrap{max-width:1180px;margin:0 auto}
-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+header{display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap}
 h1{font-size:18px;font-weight:500}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
 .dot.bad{background:var(--bad)}
@@ -23,14 +23,26 @@ h1{font-size:18px;font-weight:500}
   border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px}
 .banner.show{display:block}
 .banner b{font-weight:500}
+
+/* ---- 工具条：范围 / 单位 ---- */
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
+.seg button{font:inherit;font-size:12.5px;color:var(--tx2);background:none;border:0;padding:4px 11px;
+  border-radius:7px;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s}
+.seg button:hover{color:var(--tx)}
+.seg button.on{background:#eeecf8;color:var(--accent)}
+.seg .sep{width:1px;background:var(--line);margin:3px 4px}
+.hint{font-size:11.5px;color:var(--tx3);margin-left:auto}
+
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(166px,1fr));gap:12px;margin-bottom:16px}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
 .kpi .lab{color:var(--tx2);font-size:12px;margin-bottom:5px}
-.kpi .val{font-size:21px;font-weight:500;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.kpi .val{font-size:21px;font-weight:500;letter-spacing:-.3px;font-variant-numeric:tabular-nums;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpi .sub{color:var(--tx3);font-size:11px;margin-top:2px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px}
 .card h2{font-size:13.5px;font-weight:500;margin-bottom:12px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-.card h2 span{font-size:11.5px;font-weight:400;color:var(--tx3)}
+.card h2 span{font-size:11.5px;font-weight:400;color:var(--tx3);text-align:right}
 svg{display:block;width:100%;height:auto}
 .legend{display:flex;gap:16px;margin-top:8px;font-size:11.5px;color:var(--tx2);flex-wrap:wrap}
 .legend i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:1px}
@@ -41,15 +53,48 @@ th{text-align:left;color:var(--tx2);font-weight:400;padding:6px 8px;border-botto
 td{padding:6px 8px;border-bottom:1px solid #f0eeea}
 tr:last-child td{border-bottom:none}
 td.num{text-align:right;font-variant-numeric:tabular-nums}
-.bar{height:6px;border-radius:3px;background:#e8e6df;overflow:hidden;min-width:48px}
+.bar{height:6px;border-radius:3px;background:#e8e6df;overflow:hidden;min-width:30px}
 .bar i{display:block;height:100%;background:var(--accent);border-radius:3px;min-width:2px}
 .tag{display:inline-block;padding:0 7px;border-radius:20px;background:#eeecf8;color:#534ab7;font-size:11px}
 .mrow{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:12px}
 .mrow .nm{width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx2)}
 .mrow .tr{flex:1;height:14px;background:#f0eeea;border-radius:4px;overflow:hidden}
 .mrow .tr i{display:block;height:100%;background:var(--accent);border-radius:4px}
-.mrow .v{width:64px;text-align:right;font-variant-numeric:tabular-nums;color:var(--tx3)}
+.mrow .v{min-width:74px;text-align:right;font-variant-numeric:tabular-nums;color:var(--tx3);white-space:nowrap}
 .empty{color:var(--tx3);font-size:12.5px;padding:18px 0;text-align:center}
+
+/* ---- 会话检索 ---- */
+.sbox{position:relative;margin-bottom:10px}
+.sbox input{width:100%;padding:7px 30px 7px 10px;border:1px solid var(--line);border-radius:8px;
+  background:var(--card);font:inherit;font-size:12.5px;color:var(--tx);outline:none;transition:border-color .12s,box-shadow .12s}
+.sbox input::-webkit-search-cancel-button{display:none}
+.sbox input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(83,74,183,.09)}
+.sbox input::placeholder{color:var(--tx3)}
+.sbox .clr{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:none;
+  color:var(--tx3);font-size:17px;line-height:1;cursor:pointer;padding:3px 7px;border-radius:6px;display:none}
+.sbox .clr:hover{color:var(--tx);background:#f0eeea}
+.sbox.has .clr{display:block}
+.sess-wrap{max-height:306px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;position:relative}
+.sess-wrap::-webkit-scrollbar{width:8px}
+.sess-wrap::-webkit-scrollbar-thumb{background:#e0ded7;border-radius:4px}
+.sess-wrap thead th{position:sticky;top:0;background:var(--card);z-index:1;box-shadow:inset 0 -1px 0 var(--line)}
+.stbl{table-layout:fixed}
+.stbl td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stbl td.t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stbl td.ctx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#6b6a66}
+.stbl col.c2{width:86px}.stbl col.c3{width:40px}
+.stbl col.c4{width:52px}.stbl col.c5{width:68px}
+/* 原始值 / K 单位下这列会变长，给足宽度并保留省略兜底 */
+body.u-raw .stbl col.c2{width:124px}
+body.u-K .stbl col.c2{width:108px}
+.sess-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:9px;
+  font-size:11.5px;color:var(--tx3);min-height:22px}
+.sess-foot button{font:inherit;font-size:11.5px;color:var(--accent);background:#eeecf8;border:0;
+  border-radius:6px;padding:3px 10px;cursor:pointer}
+.sess-foot button:hover{background:#e3e0f6}
+.sess-foot button[disabled]{background:#f0eeea;color:var(--tx3);cursor:default}
+.lv{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ok);margin-right:5px;vertical-align:2px}
+.lv.off{background:#d8d6ce}
 </style>
 </head>
 <body>
@@ -66,10 +111,25 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
 
   <div class="banner" id="banner"></div>
 
+  <div class="toolbar">
+    <div class="seg" id="segGran">
+      <button data-v="day">近 7 天</button>
+      <button data-v="week">近 4 周</button>
+      <button data-v="month">近 12 个月</button>
+      <button data-v="year">近 3 年</button>
+    </div>
+    <div class="seg" id="segUnit">
+      <button data-v="M">M</button>
+      <button data-v="K">K</button>
+      <button data-v="raw">原始值</button>
+    </div>
+    <span class="hint" id="hint"></span>
+  </div>
+
   <div class="kpis" id="kpis"></div>
 
   <div class="card">
-    <h2>每日 token 消耗 <span>柱为输入（缓存 / 新增），折线为输出</span></h2>
+    <h2>token 消耗趋势 <span id="chartNote"></span></h2>
     <svg id="daily" viewBox="0 0 1000 260" preserveAspectRatio="none"></svg>
     <div class="legend">
       <span><i style="background:#9fe1cb"></i>命中缓存</span>
@@ -80,109 +140,292 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
 
   <div class="grid2">
     <div class="card">
-      <h2>模型分布 <span>按总 token</span></h2>
+      <h2>模型分布 <span id="modelNote">按总 token</span></h2>
       <div id="models"></div>
     </div>
     <div class="card">
-      <h2>会话消耗 <span>按计费积分</span></h2>
-      <table id="sess"></table>
+      <h2>会话消耗 <span id="sessNote">按计费积分</span></h2>
+      <div class="sbox" id="sbox">
+        <input id="q" type="search" autocomplete="off" spellcheck="false"
+               placeholder="输入会话名称检索，覆盖全部历史会话">
+        <button class="clr" id="qclr" title="清空" aria-label="清空">×</button>
+      </div>
+      <div class="sess-wrap" id="sessWrap">
+        <table class="stbl">
+          <colgroup>
+            <col><col class="c2"><col class="c3">
+            <col class="c4"><col class="c5">
+          </colgroup>
+          <thead><tr>
+            <th>会话</th><th class="num">占用</th><th></th>
+            <th class="num">积分</th><th class="num">活跃</th>
+          </tr></thead>
+          <tbody id="sess"></tbody>
+        </table>
+      </div>
+      <div class="sess-foot">
+        <span id="sessInfo"></span>
+        <span id="sessMore"></span>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
-const f = n => n>=1e6 ? (n/1e6).toFixed(2)+'M' : n>=1e3 ? (n/1e3).toFixed(1)+'k' : String(Math.round(n||0));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- 显示状态：范围粒度 + 数值单位 ---------- */
+const GRAN_LABEL = {day:'近 7 天', week:'近 4 周', month:'近 12 个月', year:'近 3 年'};
+const UNIT_LABEL = {M:'M', K:'K', raw:'原始值'};
+
+function lsGet(k, dft){ try{ return localStorage.getItem(k) || dft; }catch(e){ return dft; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+
+let GRAN = lsGet('wbum.gran', 'day');
+let UNIT = lsGet('wbum.unit', 'M');
+/* URL 参数优先，方便分享指定视图，也方便自动化截图 */
+const QS = new URLSearchParams(location.search);
+if(QS.get('gran')) GRAN = QS.get('gran');
+if(QS.get('unit')) UNIT = QS.get('unit');
+if(!GRAN_LABEL[GRAN]) GRAN = 'day';
+if(!UNIT_LABEL[UNIT]) UNIT = 'M';
+
 let DATA = null;
+let SERIES = null;          // 归一化后的四粒度序列
+let lastSessionRefresh = 0;
+
+/* 单位换算：三种口径直接决定屏幕上的每一个 token 数字 */
+function fmtTok(n){
+  n = Number(n) || 0;
+  if(!n) return '0';                       // 0 不写 0.00M，避免误读成“有一点”
+  if(UNIT === 'raw') return Math.round(n).toLocaleString('en-US');
+  if(UNIT === 'K')   return (n/1e3).toFixed(1) + 'K';
+  return (n/1e6).toFixed(2) + 'M';
+}
+
+/* ---------- 序列归一化 ----------
+   服务端直接给四粒度；若拿到的是早期版本的快照（没有 series），
+   就用 daily 现场折一份，保证换版本不会白屏。 */
+function normalizeSeries(d){
+  if(d && d.series && d.series.day) return d.series;
+  const buckets = (d && d.daily || []).map(x => ({
+    key:x.day, label:String(x.day).slice(5), from:x.day, to:x.day,
+    requests:x.requests, input_new:x.input_new, input_cached:x.input_cached,
+    output:x.output, output_reasoning:x.output_reasoning, total:x.total
+  })).slice(-7);
+  const totals = {requests:0,input_new:0,input_cached:0,output:0,output_reasoning:0,total:0};
+  buckets.forEach(b => { for(const k in totals) totals[k] += b[k]||0; });
+  return {day:{label:GRAN_LABEL.day, buckets, totals}};
+}
 
 /* ---------- KPI ---------- */
 function renderKpis(d){
-  const t = d.totals;
-  const inAll = t.input_new + t.input_cached;
-  const hit = inAll ? t.input_cached / inAll * 100 : 0;
-  const think = t.output ? t.output_reasoning / t.output * 100 : 0;
-  const credit = (d.sessions||[]).reduce((a,s)=>a+(s.credit||0),0);
+  const ser = SERIES[GRAN];
+  const w = ser.totals;
+  const L = GRAN_LABEL[GRAN];
+  const inAll = w.input_new + w.input_cached;
+  const hit = inAll ? w.input_cached / inAll * 100 : 0;
+  const think = w.output ? w.output_reasoning / w.output * 100 : 0;
+  const credit = d.totals.credit;
   const items = [
-    ['总 token', f(t.total), `${t.requests.toLocaleString()} 次请求`],
-    ['新增输入', f(t.input_new), '未命中缓存'],
-    ['命中缓存', f(t.input_cached), `占输入 ${hit.toFixed(1)}%`],
-    ['输出', f(t.output), `其中思考 ${f(t.output_reasoning)}`],
+    ['总 token', fmtTok(w.total), `${L} · ${w.requests.toLocaleString()} 次请求`],
+    ['新增输入', fmtTok(w.input_new), `${L} · 未命中缓存`],
+    ['命中缓存', fmtTok(w.input_cached), `占输入 ${hit.toFixed(1)}%`],
+    ['输出', fmtTok(w.output), `其中思考 ${fmtTok(w.output_reasoning)}`],
     ['思考占比', think.toFixed(1)+'%', '输出里用于推理'],
-    ['计费积分', credit.toFixed(1), '会话累计'],
+    ['计费积分', (credit||0).toFixed(1), '全部会话累计'],
   ];
   $('kpis').innerHTML = items.map(k =>
     `<div class="kpi"><div class="lab">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`
   ).join('');
 }
 
-/* ---------- 每日图（手写 SVG，零依赖） ---------- */
-function renderDaily(d){
+/* ---------- 趋势图（手写 SVG，零依赖） ---------- */
+function renderChart(){
   const svg = $('daily');
-  const daily = d.daily || [];
-  if(!daily.length){ svg.innerHTML = ''; return; }
-  const W=1000, H=260, L=56, R=64, T=14, B=30;
+  const ser = SERIES[GRAN];
+  const bs = ser.buckets || [];
+  if(!bs.length){ svg.innerHTML = ''; return; }
+
+  // 按单位预留轴宽：原始值位数最多，K 次之，M 最短
+  const W=1000, H=260, T=14, B=30;
+  const L = UNIT === 'raw' ? 92 : UNIT === 'K' ? 80 : 58;
+  const R = UNIT === 'raw' ? 106 : UNIT === 'K' ? 88 : 66;
   const iw = W-L-R, ih = H-T-B;
-  const n = daily.length;
-  const maxIn = Math.max(1, ...daily.map(x => x.input_cached + x.input_new));
-  const maxOut = Math.max(1, ...daily.map(x => x.output));
-  const bw = Math.min(46, iw / n * 0.56);
+  const n = bs.length;
+  const maxIn  = Math.max(1, ...bs.map(x => (x.input_cached||0) + (x.input_new||0)));
+  const maxOut = Math.max(1, ...bs.map(x => x.output||0));
   const step = iw / n;
-  const yIn = v => T + ih - v/maxIn*ih;
+  const bw = Math.min(n <= 4 ? 76 : 46, step * 0.56);
+  const yIn  = v => T + ih - v/maxIn*ih;
   const yOut = v => T + ih - v/maxOut*ih;
   const parts = [];
 
-  // 横向网格 + 左轴
   for(let g=0; g<=4; g++){
     const y = T + ih*g/4;
     parts.push(`<line x1="${L}" y1="${y}" x2="${W-R}" y2="${y}" stroke="#f0eeea" stroke-width="1"/>`);
-    parts.push(`<text x="${L-8}" y="${y+4}" text-anchor="end" font-size="11" fill="#9a9993">${f(maxIn*(1-g/4))}</text>`);
-    parts.push(`<text x="${W-R+8}" y="${y+4}" font-size="11" fill="#7f77dd">${f(maxOut*(1-g/4))}</text>`);
+    parts.push(`<text x="${L-8}" y="${y+4}" text-anchor="end" font-size="${UNIT==='raw'?10:11}" fill="#9a9993">${fmtTok(maxIn*(1-g/4))}</text>`);
+    parts.push(`<text x="${W-R+8}" y="${y+4}" font-size="${UNIT==='raw'?10:11}" fill="#7f77dd">${fmtTok(maxOut*(1-g/4))}</text>`);
   }
 
-  // 柱 + 折线
   const pts = [];
-  daily.forEach((x, i) => {
+  bs.forEach((x, i) => {
     const cx = L + step*i + step/2;
     const x0 = cx - bw/2;
-    const hC = x.input_cached/maxIn*ih;
-    const hN = x.input_new/maxIn*ih;
+    const hC = (x.input_cached||0)/maxIn*ih;
+    const hN = (x.input_new||0)/maxIn*ih;
+    const tip = `${x.from}${x.to && x.to!==x.from ? ' ~ '+x.to : ''}\n命中缓存 ${fmtTok(x.input_cached)}\n新增输入 ${fmtTok(x.input_new)}\n输出 ${fmtTok(x.output)}\n合计 ${fmtTok(x.total)}\n${(x.requests||0).toLocaleString()} 次请求`;
+    // 透明热区：整列都能悬停，不用精确点到柱子上
+    parts.push(`<rect x="${L+step*i}" y="${T}" width="${step}" height="${ih}" fill="transparent"><title>${esc(tip)}</title></rect>`);
     parts.push(`<rect x="${x0}" y="${T+ih-hC}" width="${bw}" height="${hC}" fill="#9fe1cb"/>`);
     parts.push(`<rect x="${x0}" y="${T+ih-hC-hN}" width="${bw}" height="${hN}" fill="#378add"/>`);
-    parts.push(`<text x="${cx}" y="${H-10}" text-anchor="middle" font-size="11" fill="#9a9993">${x.day.slice(5)}</text>`);
-    pts.push([cx, yOut(x.output)]);
-    parts.push(`<circle cx="${cx}" cy="${yOut(x.output)}" r="3" fill="#fff" stroke="#7f77dd" stroke-width="2"><title>${x.day} · 输出 ${x.output.toLocaleString()}</title></circle>`);
+    parts.push(`<text x="${cx}" y="${H-10}" text-anchor="middle" font-size="${n>8?10:11}" fill="#9a9993">${esc(x.label)}</text>`);
+    pts.push([cx, yOut(x.output||0)]);
+    parts.push(`<circle cx="${cx}" cy="${yOut(x.output||0)}" r="3" fill="#fff" stroke="#7f77dd" stroke-width="2"/>`);
   });
   parts.push(`<polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="#7f77dd" stroke-width="2"/>`);
+
+  if(ser.totals.total === 0){
+    parts.push(`<text x="${L+iw/2}" y="${T+ih/2}" text-anchor="middle" font-size="12" fill="#9a9993">该范围内暂无数据</text>`);
+  }
   svg.innerHTML = parts.join('');
+
+  const t = ser.totals;
+  $('chartNote').textContent = `${GRAN_LABEL[GRAN]} · 合计 ${fmtTok(t.total)} · ${t.requests.toLocaleString()} 次请求`;
 }
 
-/* ---------- 模型 ---------- */
+/* ---------- 模型（跟随所选范围） ---------- */
 function renderModels(d){
-  const ms = d.models || [];
-  if(!ms.length){ $('models').innerHTML = '<div class="empty">暂无数据</div>'; return; }
+  const ser = SERIES[GRAN] || {};
+  const ms = (ser.models && ser.models.length) ? ser.models : (d.models || []);
+  const note = $('modelNote');
+  if(note) note.textContent = `按总 token · ${GRAN_LABEL[GRAN]}`;
+  if(!ms.length){ $('models').innerHTML = '<div class="empty">该范围内暂无数据</div>'; return; }
   const max = Math.max(...ms.map(m=>m.total), 1);
   $('models').innerHTML = ms.map(m =>
     `<div class="mrow"><span class="nm" title="${esc(m.model)}">${esc(m.model)}</span>
      <span class="tr"><i style="width:${(m.total/max*100).toFixed(1)}%"></i></span>
-     <span class="v">${f(m.total)}</span></div>`
+     <span class="v">${fmtTok(m.total)}</span></div>`
   ).join('');
 }
 
-/* ---------- 会话表 ---------- */
-function renderSessions(d){
-  const ss = d.sessions || [];
-  if(!ss.length){ $('sess').innerHTML = '<tr><td class="empty">暂无会话</td></tr>'; return; }
-  const maxC = Math.max(...ss.map(s=>s.credit), 1);
-  $('sess').innerHTML =
-    '<tr><th>会话</th><th class="num">占用</th><th style="width:70px"></th><th class="num">积分</th></tr>' +
-    ss.slice(0,10).map(s=>`<tr>
-      <td title="${esc(s.title)}">${esc(s.title.length>28 ? s.title.slice(0,28)+'…' : s.title)}</td>
-      <td class="num" style="font-size:11.5px;color:#6b6a66">${f(s.ctx_used)}/${f(s.ctx_size)}</td>
-      <td><div class="bar"><i style="width:${Math.min(s.ctx_used/s.ctx_size*100,100).toFixed(0)}%"></i></div></td>
-      <td class="num">${(s.credit||0).toFixed(1)}<div class="bar" style="margin-top:3px"><i style="width:${((s.credit||0)/maxC*100).toFixed(0)}%"></i></div></td>
-    </tr>`).join('');
+/* ---------- 会话检索（服务端分页，覆盖全部历史会话） ---------- */
+const SESS = {q:'', items:[], total:0, page:24, busy:false, done:false, err:false};
+
+/* 支持 ?q= 预填检索词，方便分享一个「只看某类会话」的视图 */
+if(QS.get('q')){
+  SESS.q = QS.get('q').trim();
+  $('q').value = QS.get('q');
+  $('sbox').classList.add('has');
 }
+
+function relTime(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  if(isNaN(d)) return '—';
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if(diff < 60) return '刚刚';
+  if(diff < 3600) return Math.floor(diff/60) + ' 分钟前';
+  if(diff < 86400) return Math.floor(diff/3600) + ' 小时前';
+  if(diff < 86400*7) return Math.floor(diff/86400) + ' 天前';
+  return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+async function loadSessions(reset, keep){
+  if(SESS.busy) return;
+  SESS.busy = true;
+  const limit = reset ? Math.max(SESS.page, keep ? SESS.items.length : 0) : SESS.page;
+  const offset = reset ? 0 : SESS.items.length;
+  try{
+    const url = `/api/sessions?q=${encodeURIComponent(SESS.q)}&offset=${offset}&limit=${limit}`;
+    const r = await fetch(url);
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    SESS.total = d.total || 0;
+    const add = d.sessions || [];
+    if(reset){
+      SESS.items = add;
+    }else{
+      // 翻页期间可能有新会话插到前面导致重复，这里按 ref 去重
+      const seen = new Set(SESS.items.map(s => s.session_ref));
+      SESS.items = SESS.items.concat(add.filter(s => !seen.has(s.session_ref)));
+    }
+    SESS.err = false;
+    SESS.done = SESS.items.length >= SESS.total || add.length === 0;
+  }catch(e){
+    SESS.err = true;
+  }
+  SESS.busy = false;
+  renderSessions();
+}
+
+function renderSessions(){
+  const wrap = $('sessWrap'), tb = $('sess');
+  const top = wrap ? wrap.scrollTop : 0;
+
+  if(!SESS.items.length){
+    tb.innerHTML = `<tr><td colspan="5" class="empty">${
+      SESS.err ? '检索失败，请稍后重试' : (SESS.q ? '没有匹配的会话' : '暂无会话')
+    }</td></tr>`;
+  }else{
+    const maxC = Math.max(...SESS.items.map(s => s.credit||0), 1);
+    tb.innerHTML = SESS.items.map(s => {
+      const pct = Math.min((s.ctx_used||0) / (s.ctx_size||1) * 100, 100);
+      const ctx = `${fmtTok(s.ctx_used)}/${fmtTok(s.ctx_size)}`;
+      return `<tr>
+        <td class="t" title="${esc(s.title)}"><span class="lv${s.live===false?' off':''}"></span>${esc(s.title)}</td>
+        <td class="num ctx" title="${ctx}">${ctx}</td>
+        <td><div class="bar"><i style="width:${pct.toFixed(0)}%"></i></div></td>
+        <td class="num">${(s.credit||0).toFixed(1)}<div class="bar" style="margin-top:3px"><i style="width:${((s.credit||0)/maxC*100).toFixed(0)}%"></i></div></td>
+        <td class="num" style="font-size:11px;color:#9a9993;white-space:nowrap">${relTime(s.last_active)}</td>
+      </tr>`;
+    }).join('');
+  }
+  if(wrap) wrap.scrollTop = top;
+  fitSessHeight();
+
+  $('sessInfo').textContent = SESS.q
+    ? `匹配 ${SESS.total} 个 · 已显示 ${SESS.items.length} 个`
+    : `共 ${SESS.total} 个会话 · 已显示 ${SESS.items.length} 个`;
+  $('sessMore').innerHTML = SESS.done
+    ? (SESS.items.length ? '' : '')
+    : `<button id="sessBtn">加载更多</button>`;
+  const btn = $('sessBtn');
+  if(btn) btn.onclick = () => loadSessions(false);
+}
+
+/* 按实际行高把滚动区定成「表头 + 整数行」，避免最后一行被切成半截 */
+function fitSessHeight(){
+  const w = $('sessWrap');
+  if(!w) return;
+  const th = w.querySelector('thead');
+  const tr = w.querySelector('tbody tr');
+  if(!th || !tr || !tr.offsetHeight) return;
+  const rows = 8;
+  w.style.maxHeight = (th.offsetHeight + tr.offsetHeight * rows) + 'px';
+}
+
+/* 滚到底自动翻页 */
+$('sessWrap').addEventListener('scroll', () => {
+  const w = $('sessWrap');
+  if(w.scrollTop + w.clientHeight > w.scrollHeight - 90 && !SESS.done && !SESS.busy){
+    loadSessions(false);
+  }
+});
+
+/* 搜索输入（防抖 280ms） */
+let qTimer = null;
+$('q').addEventListener('input', e => {
+  const v = e.target.value;
+  $('sbox').classList.toggle('has', !!v);
+  clearTimeout(qTimer);
+  qTimer = setTimeout(() => { SESS.q = v.trim(); loadSessions(true); }, 280);
+});
+$('qclr').onclick = () => {
+  $('q').value = ''; $('sbox').classList.remove('has');
+  SESS.q = ''; loadSessions(true); $('q').focus();
+};
 
 /* ---------- 健康 ---------- */
 function renderHealth(d){
@@ -201,11 +444,48 @@ function renderHealth(d){
   }
 }
 
+/* ---------- 渲染入口 ---------- */
 function render(d){
   DATA = d;
-  renderKpis(d); renderDaily(d); renderModels(d); renderSessions(d); renderHealth(d);
+  SERIES = normalizeSeries(d);
+  if(!SERIES[GRAN]) GRAN = 'day';
+  document.body.className = 'u-' + UNIT;   // 供 CSS 按单位调整列宽
+  renderKpis(d);
+  renderChart();
+  renderModels(d);
+  renderHealth(d);
+  $('hint').textContent = `统计范围：${GRAN_LABEL[GRAN]} · 数值单位：${UNIT_LABEL[UNIT]} · 积分卡为全部会话累计`;
   $('upd').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN', {hour12:false});
+
+  // 未搜索时跟随刷新，但节流到 4 秒一次，避免每秒重排列表
+  const now = Date.now();
+  if(!SESS.q && now - lastSessionRefresh > 4000){
+    lastSessionRefresh = now;
+    loadSessions(true, true);
+  }
 }
+
+/* ---------- 分段控件 ---------- */
+function bindSeg(id, key, onChange){
+  const box = $(id);
+  const sync = () => {
+    [...box.querySelectorAll('button')].forEach(b =>
+      b.classList.toggle('on', b.dataset.v === (key === 'gran' ? GRAN : UNIT)));
+  };
+  box.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if(!b) return;
+    if(key === 'gran'){ GRAN = b.dataset.v; lsSet('wbum.gran', GRAN); }
+    else { UNIT = b.dataset.v; lsSet('wbum.unit', UNIT); }
+    sync();
+    onChange();
+  });
+  sync();
+  return sync;
+}
+
+const syncGran = bindSeg('segGran', 'gran', () => { if(DATA) render(DATA); });
+const syncUnit = bindSeg('segUnit', 'unit', () => { if(DATA) render(DATA); });
 
 /* ---------- SSE ---------- */
 function connect(){
@@ -215,15 +495,17 @@ function connect(){
   es.onopen = () => { $('conn').textContent = '实时'; };
   es.onerror = () => {
     if(!DATA){ $('dot').className = 'dot wait'; $('conn').textContent = '重连中'; }
-    // EventSource 会自动重连，这里不主动 close
   };
 }
+
 /* 默认走 SSE；加 ?static=1 则只拉一次快照（用于截图/离线调试，避免长连接挂住渲染） */
 if(new URLSearchParams(location.search).get('static') === '1'){
-  fetch('/api/snapshot').then(r=>r.json()).then(render).catch(()=>{
-    $('conn').textContent = '快照失败';
-  });
+  fetch('/api/snapshot').then(r=>r.json()).then(d=>{
+    render(d);
+    if(!SESS.items.length && !SESS.busy) loadSessions(true);   // 带 q 参数时 render 不会自动拉列表
+  }).catch(()=>{ $('conn').textContent = '快照失败'; });
 } else {
+  loadSessions(true);
   connect();
 }
 </script>
